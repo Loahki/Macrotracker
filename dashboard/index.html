@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Macro Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f172a;
+      --surface:   #1e293b;
+      --border:    #334155;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+      --green:     #22c55e;
+      --yellow:    #eab308;
+      --red:       #ef4444;
+      --blue:      #3b82f6;
+      --purple:    #a855f7;
+      --orange:    #f97316;
+      --teal:      #14b8a6;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: .75rem;
+    }
+    .header h1 { font-size: 1.5rem; font-weight: 700; }
+    .header .subtitle { color: var(--muted); font-size: .85rem; margin-top: .15rem; }
+
+    /* ── Date nav ── */
+    .date-nav {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: .75rem;
+      padding: .5rem 1rem;
+    }
+    .date-nav button {
+      background: none;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 0 .25rem;
+      line-height: 1;
+      transition: color .15s;
+    }
+    .date-nav button:hover { color: var(--blue); }
+    .date-nav button:disabled { opacity: .3; cursor: default; }
+    #current-date { font-weight: 600; font-size: .95rem; min-width: 7rem; text-align: center; }
+    #day-type {
+      font-size: .75rem;
+      padding: .2rem .6rem;
+      border-radius: 999px;
+      background: var(--blue);
+      color: #fff;
+      font-weight: 600;
+    }
+    #day-type.high { background: var(--orange); }
+
+    /* ── Refresh indicator ── */
+    .refresh-info { color: var(--muted); font-size: .75rem; }
+
+    /* ── Macro cards ── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.25rem;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: .75rem;
+    }
+    .card-name { font-size: .8rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+    .card-pct  { font-size: .8rem; font-weight: 600; }
+    .card-values {
+      display: flex;
+      align-items: baseline;
+      gap: .4rem;
+      margin-bottom: .75rem;
+    }
+    .card-current { font-size: 1.8rem; font-weight: 700; line-height: 1; }
+    .card-unit    { font-size: .85rem; color: var(--muted); }
+    .card-target  { font-size: .8rem; color: var(--muted); margin-left: auto; }
+
+    /* Progress bar */
+    .progress-track {
+      height: 8px;
+      background: var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width .4s ease;
+    }
+    .progress-fill.green  { background: var(--green); }
+    .progress-fill.yellow { background: var(--yellow); }
+    .progress-fill.red    { background: var(--red); }
+
+    /* ── Meal log ── */
+    .section-title {
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--muted);
+      margin-bottom: .75rem;
+    }
+    .meal-list {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      overflow: hidden;
+    }
+    .meal-row {
+      display: grid;
+      grid-template-columns: 4.5rem 1fr repeat(5, 4rem);
+      align-items: center;
+      gap: .5rem;
+      padding: .75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: .85rem;
+    }
+    .meal-row:last-child { border-bottom: none; }
+    .meal-row.header { color: var(--muted); font-size: .75rem; font-weight: 600; background: #263248; }
+    .meal-time { color: var(--muted); }
+    .meal-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meal-cal  { text-align: right; color: var(--text); }
+    .meal-macro { text-align: right; color: var(--muted); font-size: .8rem; }
+    .empty-state {
+      padding: 2rem;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    /* ── Weekly chart ── */
+    .weekly-section { margin-top: 1.5rem; }
+    .weekly-bars {
+      display: flex;
+      gap: .5rem;
+      align-items: flex-end;
+      height: 120px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1rem;
+      margin-top: .75rem;
+    }
+    .bar-column {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .3rem;
+      height: 100%;
+    }
+    .bar-wrapper {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      background: var(--border);
+      border-radius: .25rem .25rem 0 0;
+      overflow: hidden;
+    }
+    .bar-fill {
+      width: 100%;
+      border-radius: .25rem .25rem 0 0;
+      transition: height .4s ease;
+    }
+    .bar-label { font-size: .6rem; color: var(--muted); text-align: center; }
+    .bar-val   { font-size: .65rem; font-weight: 600; }
+
+    /* ── Loading / error ── */
+    .status-bar {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: .5rem;
+      padding: .4rem .75rem;
+      font-size: .75rem;
+      color: var(--muted);
+      display: none;
+    }
+    .status-bar.visible { display: block; }
+    .status-bar.error { color: var(--red); border-color: var(--red); }
+
+    @media (max-width: 600px) {
+      body { padding: .75rem; }
+      .meal-row { grid-template-columns: 3.5rem 1fr 4rem; }
+      .meal-row .hide-mobile { display: none; }
+      .weekly-bars { height: 80px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Macro Tracker</h1>
+    <div class="subtitle">Auto-refresh every 30s</div>
+  </div>
+  <div class="date-nav">
+    <button id="prev-btn" onclick="changeDate(-1)" title="Previous day">&#8249;</button>
+    <span id="current-date">—</span>
+    <span id="day-type">STD</span>
+    <button id="next-btn" onclick="changeDate(1)" title="Next day">&#8250;</button>
+  </div>
+</div>
+
+<!-- Macro Cards -->
+<div class="cards" id="cards">
+  <div class="card" id="card-calories" data-macro="calories" data-label="Calories" data-unit="kcal" data-accent="blue"></div>
+  <div class="card" id="card-protein"  data-macro="protein"  data-label="Protein"  data-unit="g"    data-accent="purple" data-reverse="true"></div>
+  <div class="card" id="card-carbs"    data-macro="carbs"    data-label="Carbs"    data-unit="g"    data-accent="teal"></div>
+  <div class="card" id="card-fat"      data-macro="fat"      data-label="Fat"      data-unit="g"    data-accent="orange"></div>
+  <div class="card" id="card-fiber"    data-macro="fiber"    data-label="Fiber"    data-unit="g"    data-accent="green"  data-reverse="true"></div>
+</div>
+
+<!-- Meal Log -->
+<div class="section-title">Meals Logged</div>
+<div class="meal-list" id="meal-list">
+  <div class="empty-state">Loading…</div>
+</div>
+
+<!-- Weekly Summary -->
+<div class="weekly-section">
+  <div class="section-title">7-Day Calories</div>
+  <div class="weekly-bars" id="weekly-bars"></div>
+</div>
+
+<div class="status-bar" id="status-bar"></div>
+
+<script>
+  const API = 'http://localhost:8080';
+  let currentDate = todayISO();
+  let refreshTimer = null;
+  let weeklyData = [];
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function formatDate(iso) {
+    const [y, m, d] = iso.split('-');
+    const dt = new Date(y, m - 1, d);
+    const opts = { weekday: 'short', month: 'short', day: 'numeric' };
+    return dt.toLocaleDateString('en-US', opts);
+  }
+
+  function changeDate(delta) {
+    const d = new Date(currentDate + 'T12:00:00');
+    d.setDate(d.getDate() + delta);
+    currentDate = d.toISOString().slice(0, 10);
+    document.getElementById('next-btn').disabled = (currentDate >= todayISO());
+    loadDay();
+  }
+
+  function barColour(pct, reverse) {
+    if (reverse) {
+      if (pct >= 0.85) return 'green';
+      if (pct >= 0.50) return 'yellow';
+      return 'red';
+    }
+    if (pct > 1.00) return 'red';
+    if (pct >= 0.85) return 'yellow';
+    return 'green';
+  }
+
+  function renderCards(data) {
+    const macros = ['calories', 'protein', 'carbs', 'fat', 'fiber'];
+    macros.forEach(macro => {
+      const card = document.getElementById(`card-${macro}`);
+      const val  = data[macro] || 0;
+      const tgt  = data.targets[macro] || 1;
+      const pct  = val / tgt;
+      const rev  = card.dataset.reverse === 'true';
+      const colour = barColour(pct, rev);
+      const fillPct = Math.min(pct * 100, 100).toFixed(1);
+
+      card.innerHTML = `
+        <div class="card-header">
+          <span class="card-name">${card.dataset.label}</span>
+          <span class="card-pct" style="color:var(--${colour})">${(pct * 100).toFixed(0)}%</span>
+        </div>
+        <div class="card-values">
+          <span class="card-current" style="color:var(--${card.dataset.accent})">${Math.round(val)}</span>
+          <span class="card-unit">${card.dataset.unit}</span>
+          <span class="card-target">/ ${Math.round(tgt)}</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill ${colour}" style="width:${fillPct}%"></div>
+        </div>
+      `;
+    });
+  }
+
+  function renderMeals(entries) {
+    const list = document.getElementById('meal-list');
+    if (!entries || entries.length === 0) {
+      list.innerHTML = '<div class="empty-state">No meals logged for this day.</div>';
+      return;
+    }
+
+    const header = `
+      <div class="meal-row header">
+        <span>Time</span><span>Food</span>
+        <span class="meal-cal">Cal</span>
+        <span class="meal-macro hide-mobile">Pro</span>
+        <span class="meal-macro hide-mobile">Carb</span>
+        <span class="meal-macro hide-mobile">Fat</span>
+        <span class="meal-macro hide-mobile">Fiber</span>
+      </div>`;
+
+    const rows = entries.map(e => {
+      const ts = (e.Timestamp || '').slice(-8, -3);
+      const name = (e['Meal Name'] || '').slice(0, 40);
+      const cal  = Math.round(parseFloat(e.Calories) || 0);
+      const pro  = Math.round(parseFloat(e.Protein)  || 0);
+      const carb = Math.round(parseFloat(e.Carbs)    || 0);
+      const fat  = Math.round(parseFloat(e.Fat)      || 0);
+      const fib  = Math.round(parseFloat(e.Fiber)    || 0);
+      return `
+        <div class="meal-row">
+          <span class="meal-time">${ts}</span>
+          <span class="meal-name" title="${name}">${name}</span>
+          <span class="meal-cal">${cal}</span>
+          <span class="meal-macro hide-mobile">${pro}g</span>
+          <span class="meal-macro hide-mobile">${carb}g</span>
+          <span class="meal-macro hide-mobile">${fat}g</span>
+          <span class="meal-macro hide-mobile">${fib}g</span>
+        </div>`;
+    }).join('');
+
+    list.innerHTML = header + rows;
+  }
+
+  function renderWeekly(data) {
+    const bars = document.getElementById('weekly-bars');
+    if (!data || data.length === 0) { bars.innerHTML = ''; return; }
+
+    const maxCal = Math.max(...data.map(d => Math.max(d.calories || 0, d.targets?.calories || 1500)), 1);
+
+    bars.innerHTML = data.map(d => {
+      const pct  = Math.min((d.calories || 0) / maxCal * 100, 100).toFixed(1);
+      const tPct = Math.min((d.targets?.calories || 1500) / maxCal * 100, 100).toFixed(1);
+      const label = d.date.slice(5);   // MM-DD
+      const over  = (d.calories || 0) > (d.targets?.calories || 1500);
+      const colour = over ? '#ef4444' : '#3b82f6';
+
+      return `
+        <div class="bar-column">
+          <span class="bar-val" style="color:${colour}">${Math.round(d.calories || 0)}</span>
+          <div class="bar-wrapper" title="${d.date}: ${Math.round(d.calories)} / ${d.targets?.calories} kcal">
+            <div class="bar-fill" style="height:${pct}%;background:${colour}"></div>
+          </div>
+          <span class="bar-label">${label}</span>
+        </div>`;
+    }).join('');
+  }
+
+  function showStatus(msg, isError = false) {
+    const el = document.getElementById('status-bar');
+    el.textContent = msg;
+    el.className = 'status-bar visible' + (isError ? ' error' : '');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.className = 'status-bar', 3000);
+  }
+
+  async function loadDay() {
+    document.getElementById('current-date').textContent = formatDate(currentDate);
+    document.getElementById('next-btn').disabled = (currentDate >= todayISO());
+
+    try {
+      const res = await fetch(`${API}/api/daily?date=${currentDate}`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+
+      const isHigh = data.targets?.calories === 2000;
+      const typeEl = document.getElementById('day-type');
+      typeEl.textContent = isHigh ? 'HIGH' : 'STD';
+      typeEl.className = isHigh ? 'high' : '';
+
+      renderCards(data);
+      renderMeals(data.entries || []);
+      showStatus(`Refreshed ${new Date().toLocaleTimeString()}`);
+    } catch (e) {
+      showStatus('Error: ' + e.message, true);
+    }
+  }
+
+  async function loadWeekly() {
+    try {
+      const res = await fetch(`${API}/api/weekly`);
+      if (!res.ok) return;
+      weeklyData = await res.json();
+      renderWeekly(weeklyData);
+    } catch (_) {}
+  }
+
+  async function refresh() {
+    await loadDay();
+    await loadWeekly();
+  }
+
+  // Auto-refresh every 30 seconds
+  function startAutoRefresh() {
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(refresh, 30000);
+  }
+
+  // Init
+  document.getElementById('next-btn').disabled = true;
+  refresh();
+  startAutoRefresh();
+</script>
+</body>
+</html>
