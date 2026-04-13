@@ -32,11 +32,21 @@ import sys
 import os
 import argparse
 
+# Propagate SPREADSHEET_ID for cloud mode before any lib imports
+# (no-op locally since the env var won't be set)
+
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("macro-tracker")
+_transport = os.environ.get('MCP_TRANSPORT', 'stdio')
+_port = int(os.environ.get('PORT', 8000))
+mcp = FastMCP(
+    "macro-tracker",
+    host='0.0.0.0' if _transport == 'http' else '127.0.0.1',
+    port=_port,
+)
 
 
 # ── tools ─────────────────────────────────────────────────────────────────────
@@ -250,18 +260,22 @@ def mark_high_activity_day(date: str = "") -> str:
 # ── entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
+    # CLI flags take precedence over MCP_TRANSPORT env var
     parser = argparse.ArgumentParser(description='Macro Tracker MCP Server')
-    parser.add_argument('--sse',  action='store_true', help='Run as SSE HTTP server (for Claude.ai chat)')
-    parser.add_argument('--host', default='127.0.0.1',  help='SSE host (default: 127.0.0.1)')
-    parser.add_argument('--port', type=int, default=8765, help='SSE port (default: 8765)')
+    parser.add_argument('--sse',  action='store_true', help='Run SSE server for Claude.ai chat')
+    parser.add_argument('--http', action='store_true', help='Run streamable-HTTP server')
+    parser.add_argument('--port', type=int, default=None, help='Port override')
     args = parser.parse_args()
 
     if args.sse:
-        print(f"Macro Tracker MCP server running (SSE) at http://{args.host}:{args.port}/sse")
-        print("Add to Claude.ai → Settings → Integrations:")
-        print(f"  URL: http://{args.host}:{args.port}/sse")
+        port = args.port or 8765
+        print(f"Macro Tracker MCP server (SSE) → http://127.0.0.1:{port}/sse")
+        print("Claude.ai: Settings → Integrations → Add MCP Server")
+        print(f"  URL: http://127.0.0.1:{port}/sse")
         print("Press Ctrl+C to stop.")
-        mcp.run(transport='sse', host=args.host, port=args.port)
+        mcp.run(transport='sse', host='127.0.0.1', port=port)
+    elif args.http or _transport == 'http':
+        mcp.run(transport='streamable-http')
     else:
         # Default: stdio (Claude Code CLI)
         mcp.run()

@@ -1,10 +1,18 @@
-"""Google Sheets authentication for Macro Tracker."""
+"""Google Sheets authentication for Macro Tracker.
 
+Priority order:
+1. GOOGLE_SERVICE_ACCOUNT_JSON env var (explicit SA key, e.g. Render/Railway)
+2. Application Default Credentials (Cloud Run — uses attached service account)
+3. OAuth token file (local desktop)
+"""
+
+import json
 import os
+
 import gspread
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 
 from lib.config import CONFIG_DIR, CREDS_FILE, TOKEN_FILE
 
@@ -16,8 +24,26 @@ SCOPES = [
 
 def get_client() -> gspread.Client:
     """Authenticate with Google and return an authorised gspread client."""
-    creds = None
 
+    # 1. Explicit service account JSON env var
+    sa_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+    if sa_json:
+        from google.oauth2.service_account import Credentials as SACredentials
+        info = json.loads(sa_json)
+        creds = SACredentials.from_service_account_info(info, scopes=SCOPES)
+        return gspread.authorize(creds)
+
+    # 2. Application Default Credentials (Cloud Run attaches the SA automatically)
+    if not os.path.exists(TOKEN_FILE):
+        try:
+            import google.auth
+            creds, _ = google.auth.default(scopes=SCOPES)
+            return gspread.authorize(creds)
+        except Exception:
+            pass  # Not on GCP — fall through to local OAuth
+
+    # 3. Local OAuth token file
+    creds = None
     if os.path.exists(TOKEN_FILE):
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
 
