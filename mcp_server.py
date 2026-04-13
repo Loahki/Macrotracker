@@ -1,22 +1,36 @@
 #!/usr/bin/env python3
 """
-Macro Tracker MCP Server — exposes Google Sheets logging tools to Claude Code.
+Macro Tracker MCP Server — exposes Google Sheets logging tools to Claude Code
+and Claude.ai chat.
 
-Claude Code configuration (~/.claude/settings.json):
+── stdio mode (Claude Code CLI) ────────────────────────────────────────────────
+~/.claude/settings.json:
     {
       "mcpServers": {
         "macro-tracker": {
           "command": "python3",
-          "args": ["/home/user/Macrotracker/mcp_server.py"]
+          "args": ["/home/YOUR_USER/Macrotracker/mcp_server.py"]
         }
       }
     }
+
+── SSE mode (Claude.ai chat) ───────────────────────────────────────────────────
+Start the server:
+    python3 mcp_server.py --sse           # listens on http://localhost:8765/sse
+    python3 mcp_server.py --sse --port 9000  # custom port
+
+In Claude.ai → Settings → Integrations → Add MCP Server:
+    URL:  http://localhost:8765/sse
+    Name: macro-tracker
+
+If accessing from outside localhost (e.g. via ngrok):
+    ngrok http 8765
+    # Use the https://xxxx.ngrok.io URL instead
 """
 
 import sys
 import os
-import json
-import asyncio
+import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -236,4 +250,18 @@ def mark_high_activity_day(date: str = "") -> str:
 # ── entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    mcp.run()
+    parser = argparse.ArgumentParser(description='Macro Tracker MCP Server')
+    parser.add_argument('--sse',  action='store_true', help='Run as SSE HTTP server (for Claude.ai chat)')
+    parser.add_argument('--host', default='127.0.0.1',  help='SSE host (default: 127.0.0.1)')
+    parser.add_argument('--port', type=int, default=8765, help='SSE port (default: 8765)')
+    args = parser.parse_args()
+
+    if args.sse:
+        print(f"Macro Tracker MCP server running (SSE) at http://{args.host}:{args.port}/sse")
+        print("Add to Claude.ai → Settings → Integrations:")
+        print(f"  URL: http://{args.host}:{args.port}/sse")
+        print("Press Ctrl+C to stop.")
+        mcp.run(transport='sse', host=args.host, port=args.port)
+    else:
+        # Default: stdio (Claude Code CLI)
+        mcp.run()
