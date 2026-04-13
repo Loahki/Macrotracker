@@ -9,6 +9,7 @@ from lib.auth import get_client
 from lib.config import load_config, get_targets
 
 LOG_HEADERS = ['Date', 'Timestamp', 'Meal Name', 'Calories', 'Protein', 'Carbs', 'Fat', 'Fiber']
+_HIGH_ACTIVITY_KEY = 'HIGH_ACTIVITY_DAYS'
 
 
 def _get_worksheets(client: gspread.Client) -> tuple[gspread.Spreadsheet, gspread.Worksheet, gspread.Worksheet]:
@@ -97,6 +98,37 @@ def get_weekly_summary(days: int = 7) -> list[dict]:
         d = (today - timedelta(days=i)).isoformat()
         summary.append(get_day_totals(d))
     return summary
+
+
+def get_high_activity_days() -> list[str]:
+    """Read high-activity days from the Config sheet (cloud-safe storage)."""
+    client = get_client()
+    _, _, config_ws = _get_worksheets(client)
+
+    for row in config_ws.get_all_values():
+        if row and row[0] == _HIGH_ACTIVITY_KEY:
+            raw = row[1] if len(row) > 1 else ''
+            return [d.strip() for d in raw.split(',') if d.strip()]
+    return []
+
+
+def add_high_activity_day(date_str: str) -> None:
+    """Persist a high-activity day in the Config sheet."""
+    client = get_client()
+    _, _, config_ws = _get_worksheets(client)
+
+    all_values = config_ws.get_all_values()
+    for i, row in enumerate(all_values):
+        if row and row[0] == _HIGH_ACTIVITY_KEY:
+            existing_raw = row[1] if len(row) > 1 else ''
+            existing = [d.strip() for d in existing_raw.split(',') if d.strip()]
+            if date_str not in existing:
+                existing.append(date_str)
+            config_ws.update_cell(i + 1, 2, ','.join(existing))
+            return
+
+    # Key row doesn't exist yet — append it
+    config_ws.append_row([_HIGH_ACTIVITY_KEY, date_str], value_input_option='USER_ENTERED')
 
 
 def undo_last_entry() -> Optional[dict]:

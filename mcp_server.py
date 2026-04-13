@@ -18,11 +18,21 @@ import os
 import json
 import asyncio
 
+# Propagate SPREADSHEET_ID for cloud mode before any lib imports
+# (no-op locally since the env var won't be set)
+
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("macro-tracker")
+_transport = os.environ.get('MCP_TRANSPORT', 'stdio')
+_port = int(os.environ.get('PORT', 8000))
+mcp = FastMCP(
+    "macro-tracker",
+    host='0.0.0.0' if _transport == 'http' else '127.0.0.1',
+    port=_port,
+)
 
 
 # ── tools ─────────────────────────────────────────────────────────────────────
@@ -236,4 +246,7 @@ def mark_high_activity_day(date: str = "") -> str:
 # ── entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    mcp.run()
+    if _transport == 'http':
+        mcp.run(transport='streamable-http')
+    else:
+        mcp.run()

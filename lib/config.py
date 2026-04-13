@@ -1,7 +1,12 @@
-"""Config file management for Macro Tracker."""
+"""Config file management for Macro Tracker.
 
-import os
+Local mode:  reads ~/.macrotracker/config.json
+Cloud mode:  reads SPREADSHEET_ID env var + uses built-in defaults
+             high_activity_days are stored in the Google Sheet Config tab
+"""
+
 import json
+import os
 
 CONFIG_DIR = os.path.expanduser('~/.macrotracker')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
@@ -56,19 +61,36 @@ DEFAULT_CONFIG = {
 }
 
 
+def _is_cloud_mode() -> bool:
+    return bool(os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON'))
+
+
 def load_config() -> dict:
-    """Load config from ~/.macrotracker/config.json."""
-    if not os.path.exists(CONFIG_FILE):
-        raise FileNotFoundError(
-            f"Config not found at {CONFIG_FILE}\n"
-            "Run: python3 setup/init_sheet.py"
+    """Load config. Uses env vars in cloud mode, config file locally."""
+    # Start with defaults
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, 'r') as f:
+            config = json.load(f)
+    else:
+        config = DEFAULT_CONFIG.copy()
+
+    # SPREADSHEET_ID env var always wins
+    spreadsheet_id = os.environ.get('SPREADSHEET_ID')
+    if spreadsheet_id:
+        config['spreadsheet_id'] = spreadsheet_id
+
+    if not config.get('spreadsheet_id'):
+        raise ValueError(
+            "spreadsheet_id not set.\n"
+            "Local: run python3 setup/init_sheet.py\n"
+            "Cloud: set the SPREADSHEET_ID environment variable"
         )
-    with open(CONFIG_FILE, 'r') as f:
-        return json.load(f)
+
+    return config
 
 
 def save_config(config: dict) -> None:
-    """Save config to ~/.macrotracker/config.json."""
+    """Save config to ~/.macrotracker/config.json (local only)."""
     os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(CONFIG_FILE, 'w') as f:
         json.dump(config, f, indent=2)
@@ -94,7 +116,13 @@ def get_targets(target_date: str | None = None) -> dict:
     config = load_config()
     target = target_date or dt_date.today().isoformat()
 
-    if target in config.get('high_activity_days', []):
+    if _is_cloud_mode():
+        from lib.sheets import get_high_activity_days
+        high_activity_days = get_high_activity_days()
+    else:
+        high_activity_days = config.get('high_activity_days', [])
+
+    if target in high_activity_days:
         return config['targets']['high_activity']
     return config['targets']['standard']
 
@@ -102,13 +130,17 @@ def get_targets(target_date: str | None = None) -> dict:
 def mark_high_activity(target_date: str | None = None) -> str:
     """Mark a date as a high-activity day."""
     from datetime import date as dt_date
-    config = load_config()
     target = target_date or dt_date.today().isoformat()
 
-    if 'high_activity_days' not in config:
-        config['high_activity_days'] = []
-    if target not in config['high_activity_days']:
-        config['high_activity_days'].append(target)
-        save_config(config)
+    if _is_cloud_mode():
+        from lib.sheets import add_high_activity_day
+        add_high_activity_day(target)
+    else:
+        config = load_config()
+        if 'high_activity_days' not in config:
+            config['high_activity_days'] = []
+        if target not in config['high_activity_days']:
+            config['high_activity_days'].append(target)
+            save_config(config)
 
     return target
