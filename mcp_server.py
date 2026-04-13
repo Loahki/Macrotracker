@@ -35,7 +35,7 @@ mcp = FastMCP(
 )
 
 
-# ── tools ─────────────────────────────────────────────────────────────────────
+# ── tools ───────────────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
 def log_food(
@@ -45,6 +45,7 @@ def log_food(
     carbs: float,
     fat: float,
     fiber: float,
+    date: str = "",
 ) -> str:
     """
     Log a food item to the Macro Tracker Google Sheet.
@@ -59,6 +60,7 @@ def log_food(
         carbs:    Carbohydrates in grams
         fat:      Total fat in grams
         fiber:    Dietary fiber in grams
+        date:     Date in YYYY-MM-DD format (default: today)
     """
     from lib.sheets import log_food as _log, get_day_totals
 
@@ -69,9 +71,10 @@ def log_food(
         carbs=carbs,
         fat=fat,
         fiber=fiber,
+        meal_date=date or None,
     )
 
-    totals = get_day_totals()
+    totals = get_day_totals(date or None)
     t = totals['targets']
     is_high = t['calories'] == 2000
 
@@ -79,13 +82,52 @@ def log_food(
         f"✓ Logged: {name}",
         f"  {calories:.0f} cal | {protein:.0f}g protein | {carbs:.0f}g carbs | {fat:.0f}g fat | {fiber:.0f}g fiber",
         "",
-        f"Today's running totals ({('High-Activity' if is_high else 'Standard')} day):",
+        f"Running totals for {totals['date']} ({('High-Activity' if is_high else 'Standard')} day):",
         f"  Calories: {totals['calories']:.0f} / {t['calories']} kcal",
         f"  Protein:  {totals['protein']:.0f} / {t['protein']}g",
         f"  Carbs:    {totals['carbs']:.0f} / {t['carbs']}g",
         f"  Fat:      {totals['fat']:.0f} / {t['fat']}g",
         f"  Fiber:    {totals['fiber']:.0f} / {t['fiber']}g",
     ]
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def get_day_totals(date: str = "") -> str:
+    """
+    Return macro totals for a specific date and how they compare to daily targets.
+
+    Args:
+        date: Date in YYYY-MM-DD format (default: today)
+    """
+    from lib.sheets import get_day_totals as _get_totals
+
+    totals = _get_totals(date or None)
+    t = totals['targets']
+    is_high = t['calories'] == 2000
+    entries = totals.get('entries', [])
+
+    def pct(v, target):
+        return f"{v / target * 100:.0f}%" if target else "—"
+
+    lines = [
+        f"Date: {totals['date']}  ({'High-Activity' if is_high else 'Standard'} day)",
+        "─" * 44,
+        f"  Calories: {totals['calories']:>6.1f} / {t['calories']:>4} kcal  ({pct(totals['calories'], t['calories'])})",
+        f"  Protein:  {totals['protein']:>6.1f} / {t['protein']:>4}g    ({pct(totals['protein'], t['protein'])})",
+        f"  Carbs:    {totals['carbs']:>6.1f} / {t['carbs']:>4}g    ({pct(totals['carbs'], t['carbs'])})",
+        f"  Fat:      {totals['fat']:>6.1f} / {t['fat']:>4}g    ({pct(totals['fat'], t['fat'])})",
+        f"  Fiber:    {totals['fiber']:>6.1f} / {t['fiber']:>4}g    ({pct(totals['fiber'], t['fiber'])})",
+        "─" * 44,
+        f"  Meals logged: {len(entries)}",
+    ]
+
+    for e in entries:
+        ts = str(e.get('Timestamp', ''))[-8:-3]
+        lines.append(
+            f"  {ts}  {e.get('Meal Name','')[:30]:<30}  {float(e.get('Calories',0) or 0):.0f} cal"
+        )
+
     return "\n".join(lines)
 
 
@@ -243,7 +285,7 @@ def mark_high_activity_day(date: str = "") -> str:
     return f"✓ Marked {marked} as a high-activity day (target: 2000 cal)."
 
 
-# ── entry point ───────────────────────────────────────────────────────────────
+# ── entry point ────────────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
     if _transport == 'http':
