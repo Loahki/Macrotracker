@@ -45,7 +45,7 @@ def main():
     client = get_client()
     print("Authentication successful!")
 
-    # Check for existing sheet
+    # Check for existing sheet in config file
     existing_id = ""
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE) as f:
@@ -59,6 +59,29 @@ def main():
             print("Using existing sheet. Config unchanged.")
             _verify_worksheets(client, existing_id)
             return
+
+    # No config found — ask whether to connect to an existing sheet or create new
+    print("\nNo local config found.")
+    print("Do you want to:")
+    print("  1) Connect to an existing 'Macro Tracker' sheet (recommended if already set up)")
+    print("  2) Create a brand new sheet")
+    choice = input("\nEnter 1 or 2: ").strip()
+
+    if choice == '1':
+        print("\nFind your spreadsheet ID in the sheet URL:")
+        print("  https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit")
+        existing_id = input("Paste spreadsheet ID: ").strip()
+        if not existing_id:
+            print("No ID entered. Aborting.")
+            sys.exit(1)
+
+        config = DEFAULT_CONFIG.copy()
+        config['spreadsheet_id'] = existing_id
+        save_config(config)
+        print(f"\nConfig saved to: {CONFIG_FILE}")
+        _verify_worksheets(client, existing_id)
+        print("\nDone! Test with: macros today")
+        return
 
     print("\nCreating 'Macro Tracker' Google Sheet...")
     spreadsheet = client.create('Macro Tracker')
