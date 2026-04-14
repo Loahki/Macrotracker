@@ -14,7 +14,8 @@ show the result.
 |---|---|
 | `log_staple` | User mentions a named staple (super coffee, apple, meal prep) |
 | `log_food` | User mentions any other food with estimated or provided macros |
-| `get_today_totals` | User asks "how am I doing", "what's my count", "totals" |
+| `get_day_totals` | User asks "how am I doing", "what's my count", "totals", or asks about a past date |
+| `get_today_totals` | Alias — same as get_day_totals with no date arg |
 | `get_weekly_summary` | User asks about the week or recent days |
 | `list_staples` | User asks what staples are configured |
 | `undo_last_entry` | User says "undo", "remove that", "I didn't eat that" |
