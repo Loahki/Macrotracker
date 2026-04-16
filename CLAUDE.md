@@ -118,5 +118,20 @@ For quantities not listed above, scale proportionally (e.g., "8oz chicken" = 6oz
 
 - **CLI:** `macros today`, `macros log "..."`, etc. (see README.md)
 - **Dashboard:** `python3 dashboard/server.py` → http://localhost:8080
-- **MCP config:** see README.md § "Claude Code MCP Setup"
+- **MCP config (desktop):** registered at user scope — `claude mcp add --scope user macro-tracker -- python3 /home/johnr/Macrotracker/mcp_server.py`
 - **Sheet init:** `python3 setup/init_sheet.py` (run once)
+
+## Cloud Deployment
+
+- **Cloud Run URL:** `https://macro-tracker-90489480158.us-central1.run.app/mcp`
+- **GCP project:** `macrotracker-493201`
+- **Service account:** `macro-tracker@macrotracker-493201.iam.gserviceaccount.com`
+- **Active branch:** `claude/new-session-66mv1`
+- **Redeploy:**
+  ```bash
+  ~/google-cloud-sdk/bin/gcloud run deploy macro-tracker \
+    --source . --region us-central1 \
+    --service-account macro-tracker@macrotracker-493201.iam.gserviceaccount.com \
+    --set-env-vars "MCP_TRANSPORT=http,SPREADSHEET_ID=1un97GuVyZSGzkq4AC-stLyxh_GR2Iw6bpuRJPxZyzvQ" \
+    --allow-unauthenticated --project macrotracker-493201 --quiet
+  ```
